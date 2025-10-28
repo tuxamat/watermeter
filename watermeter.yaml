@@ -1,0 +1,109 @@
+substitutions:
+  device_name: drink-water-counter
+esphome:
+  name: ${device_name}
+  friendly_name: Drink water counter
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+# Enable logging
+logger:
+  level: WARN
+  baud_rate: 0
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: !secret api_key
+
+ota:
+  - platform: esphome
+    password: !secret ota_pass
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: ${device_name}
+    password: !secret ap_password
+
+captive_portal:
+
+time: # Время берем из Home Assistant
+  - platform: homeassistant
+    id: homeassistant_time
+
+sensor: 
+
+  - platform: pulse_counter 
+    # Сенсор "питьевой" воды 
+    name: "drink_water_${device_name}" 
+    id: id_drink_water 
+    pin: GPIO25
+    update_interval: 15s 
+    accuracy_decimals: 2
+    # это нужно, чтобы HA воспринимал текущее значение расхода, если оно равно предшествующему, как новое,
+    # а не как будто бы оно не поменялось force_update
+    force_update: True
+    # Время обновления важно оставить таким 
+    unit_of_measurement: L
+    device_class: water
+    state_class: total
+    filters:
+        # Коэффициент 0.25 из-за обновления 4 раза в мин, 2164 - количество тиков счётчика на литр воды
+      - lambda: |- 
+          static float total_drink_value = 0.0; 
+          total_drink_value = x * 0.25 / 2164; 
+          return total_drink_value;
+  # ------------------------------------------------------------------------------ 
+  - platform: pulse_counter 
+    # Сенсор "сырой" воды 
+    name: "raw_water_${device_name}" 
+    id: id_raw_water 
+    pin: GPIO26
+    update_interval: 15s
+    accuracy_decimals: 2
+    # это нужно, чтобы HA воспринимал текущее значение расхода, если оно равно предшествующему, как новое,
+    # а не как будто бы оно не поменялось force_update    
+    force_update: True
+    # Время обновления важно оставить таким 
+    unit_of_measurement: L
+    device_class: water
+    state_class: total
+    filters: 
+          # Коэффициент 0.25 из-за обновления 4 раза в мин, 2145 - количество тиков счётчика на литр воды 
+      - lambda: |- 
+          static float total_raw_value = 0.0; 
+          total_raw_value = x * 0.25 / 2164; 
+          return total_raw_value; 
+#=============================================================================== 
+
+#-------------------------------------------------------------------------------
+  - platform: uptime # Время работы после последней перезагрузки
+    name: "uptime_${device_name}"
+#-------------------------------------------------------------------------------
+
+#===============================================================================
+switch:
+  - platform: restart # Переключатель перезагрузки устройства
+    name: "restart_${device_name}" 
+#===============================================================================
+binary_sensor:
+  - platform: status
+    name: "Status_${device_name}"
+
+#===============================================================================
+esp32_ble_tracker:
+  scan_parameters:
+    interval: 1100ms
+    window: 1100ms
+    active: true
+#===============================================================================
+bluetooth_proxy:
+  active: true
+    
