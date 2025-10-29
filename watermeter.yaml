@@ -18,6 +18,12 @@ logger:
 api:
   encryption:
     key: !secret api_key
+  services:
+    - service: set_total
+      variables:
+        new_total: float
+      then:
+        - lambda: id(gl_total_water) = new_total;
 
 ota:
   - platform: esphome
@@ -34,68 +40,73 @@ wifi:
 
 captive_portal:
 
-time: # Время берем из Home Assistant
+time: 
   - platform: homeassistant
     id: homeassistant_time
 
-sensor: 
 
-  - platform: pulse_counter 
-    # Сенсор "питьевой" воды 
-    name: "drink_water_${device_name}" 
-    id: id_drink_water 
-    pin: GPIO25
-    update_interval: 15s 
-    accuracy_decimals: 2
-    # это нужно, чтобы HA воспринимал текущее значение расхода, если оно равно предшествующему, как новое,
-    # а не как будто бы оно не поменялось force_update
-    force_update: True
-    # Время обновления важно оставить таким 
-    unit_of_measurement: L
-    device_class: water
-    state_class: total
-    filters:
-        # Коэффициент 0.25 из-за обновления 4 раза в мин, 2164 - количество тиков счётчика на литр воды
-      - lambda: |- 
-          static float total_drink_value = 0.0; 
-          total_drink_value = x * 0.25 / 2164; 
-          return total_drink_value;
-  # ------------------------------------------------------------------------------ 
-  - platform: pulse_counter 
-    # Сенсор "сырой" воды 
-    name: "raw_water_${device_name}" 
-    id: id_raw_water 
+globals:
+  - id: gl_total_water
+    type: float
+    restore_value: yes
+    initial_value: '0.0'
+  - id: bad_total_water
+    type: float
+    restore_value: yes
+    initial_value: '0.0'
+
+sensor:
+  - platform: pulse_counter
     pin: GPIO26
-    update_interval: 15s
-    accuracy_decimals: 2
-    # это нужно, чтобы HA воспринимал текущее значение расхода, если оно равно предшествующему, как новое,
-    # а не как будто бы оно не поменялось force_update    
-    force_update: True
-    # Время обновления важно оставить таким 
-    unit_of_measurement: L
-    device_class: water
-    state_class: total
-    filters: 
-          # Коэффициент 0.25 из-за обновления 4 раза в мин, 2145 - количество тиков счётчика на литр воды 
+    id: water_pulse
+    update_interval: 1s 
+    filters:
       - lambda: |- 
-          static float total_raw_value = 0.0; 
-          total_raw_value = x * 0.25 / 2164; 
-          return total_raw_value; 
-#=============================================================================== 
-
-#-------------------------------------------------------------------------------
-  - platform: uptime # Время работы после последней перезагрузки
-    name: "uptime_${device_name}"
-#-------------------------------------------------------------------------------
-
-#===============================================================================
-switch:
-  - platform: restart # Переключатель перезагрузки устройства
-    name: "restart_${device_name}" 
-#===============================================================================
-binary_sensor:
-  - platform: status
-    name: "Status_${device_name}"
+          static float total_drink_value = 0.0;
+          total_drink_value = x * 0.0167 / 2200; #смотрите документацию на счетчик
+          id(gl_total_water) = id(gl_total_water) + total_drink_value;
+          return total_drink_value;
+    on_value:
+      then:
+      - component.update: total_clear_water 
+  - platform: pulse_counter
+    pin: GPIO25
+    id: water_bad_pulse
+    update_interval: 1s 
+    filters:
+      - lambda: |- 
+          static float total_bad_value = 0.0;
+          total_bad_value = x * 0.0167 / 2200; 
+          id(bad_total_water) = id(bad_total_water) + total_bad_value;
+          return total_bad_value;
+    on_value:
+      then:
+      - component.update: total_bad_water 
+  - platform: template
+    id: total_clear_water 
+    name: Total clear water
+    icon: mdi:water-plus-outline
+    accuracy_decimals: 2
+    unit_of_measurement: "L" 
+    lambda: 'return id(gl_total_water);'
+  - platform: template
+    id: total_bad_water 
+    name: Bad water
+    icon: mdi:water-minus-outline
+    accuracy_decimals: 2
+    unit_of_measurement: "L" 
+    lambda: 'return id(bad_total_water);'
+button:
+  - platform: template
+    name: "Reset clear water"
+    icon: "mdi:restore"
+    on_press:
+      - lambda: id(gl_total_water) = 0.0;
+  - platform: template
+    name: "Reset bad water"
+    icon: "mdi:restore"
+    on_press:
+      - lambda: id(bad_total_water) = 0.0;
 
 #===============================================================================
 esp32_ble_tracker:
@@ -106,4 +117,11 @@ esp32_ble_tracker:
 #===============================================================================
 bluetooth_proxy:
   active: true
-    
+
+switch:
+  - platform: restart # Переключатель перезагрузки устройства
+    name: "restart_${device_name}" 
+#===============================================================================
+binary_sensor:
+  - platform: status
+    name: "Status_${device_name}"
