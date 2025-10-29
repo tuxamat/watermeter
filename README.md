@@ -15,6 +15,7 @@
 ![water](https://github.com/user-attachments/assets/841ac764-3a16-4059-aeeb-b5497ec4086a)
 
 Сообираем по схеме: 
-![схема](https://github.com/user-attachments/assets/18a3898f-ae14-41aa-a4de-f5f5e64b2c79)
+![схема](https://github.com/user-attachments/assets/52a8020d-40cb-4b3b-866e-5c72df68526d)
+
 
     
