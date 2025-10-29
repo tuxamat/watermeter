@@ -57,7 +57,7 @@ globals:
 
 sensor:
   - platform: pulse_counter
-    pin: GPIO26
+    pin: GPIO25
     id: water_pulse
     update_interval: 1s 
     filters:
@@ -70,7 +70,7 @@ sensor:
       then:
       - component.update: total_clear_water 
   - platform: pulse_counter
-    pin: GPIO25
+    pin: GPIO26
     id: water_bad_pulse
     update_interval: 1s 
     filters:
